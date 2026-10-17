@@ -218,9 +218,9 @@ async function ensureLandmarker() {
     baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
     runningMode: "LIVE_STREAM",
     numHands: 2,
-    minHandDetectionConfidence: 0.5,
-    minHandPresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5,
+    minHandDetectionConfidence: 0.3,
+    minHandPresenceConfidence: 0.3,
+    minTrackingConfidence: 0.3,
     resultCallback: function (r) { S.latest = r; S.latestT = performance.now(); },
   });
   return S.landmarker;
@@ -292,10 +292,51 @@ function drawHand(lm, color) {
   });
 }
 
+/* ---------- diagnostics: lighting + hand presence ---------- */
+var diagEl = null, lightT = 0;
+function ensureDiag() {
+  if (diagEl) return;
+  diagEl = document.createElement("div");
+  diagEl.className = "diag";
+  diagEl.innerHTML = '<span id="diag-light">💡 —</span> <span id="diag-hand">✋ —</span> <span id="diag-dist">📏 —</span>';
+  document.querySelector(".stage").appendChild(diagEl);
+}
+function checkLighting() {
+  var now = performance.now();
+  if (now - lightT < 1500) return;
+  lightT = now;
+  if (!video || video.readyState < 2) return;
+  try {
+    var c = checkLighting.cv || (checkLighting.cv = document.createElement("canvas"));
+    c.width = 32; c.height = 18;
+    var cx = c.getContext("2d", { willReadFrequently: true });
+    cx.drawImage(video, 0, 0, 32, 18);
+    var d = cx.getImageData(0, 0, 32, 18).data, sum = 0;
+    for (var i = 0; i < d.length; i += 16) sum += d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+    var avg = sum / (d.length / 64);
+    var el = document.getElementById("diag-light");
+    if (!el) return;
+    if (avg < 40) { el.textContent = "💡 too dark — add light"; el.className = "bad"; }
+    else if (avg > 220) { el.textContent = "💡 too bright — reduce glare"; el.className = "bad"; }
+    else { el.textContent = "💡 good"; el.className = "ok"; }
+  } catch (e) {}
+}
+function updateHandDiag(found, handSize) {
+  var h = document.getElementById("diag-hand"), d = document.getElementById("diag-dist");
+  if (!h || !d) return;
+  if (!found) { h.textContent = "✋ no hand seen"; h.className = "bad"; d.textContent = "📏 —"; return; }
+  h.textContent = "✋ hand tracked"; h.className = "ok";
+  if (handSize < 0.06) { d.textContent = "📏 too far — move closer"; d.className = "bad"; }
+  else if (handSize > 0.45) { d.textContent = "📏 too close — move back"; d.className = "bad"; }
+  else { d.textContent = "📏 good distance"; d.className = "ok"; }
+}
+
 function tick() {
   if (!S.running) return;
   S.raf = requestAnimationFrame(tick);
   var now = performance.now();
+  ensureDiag();
+  checkLighting();
 
   S.frames++;
   if (now - S.fpsT >= 1000) {
@@ -315,6 +356,9 @@ function tick() {
 
   if (hands.length && fresh) {
     var best = null, bestConf = 0;
+    // hand size for distance diagnostic (wrist to middle tip)
+    var hs = dist(hands[0][0], hands[0][12]);
+    updateHandDiag(true, hs);
     hands.slice(0, 2).forEach(function (lm, i) {
       drawHand(lm, HAND_COLORS[i % 2]);
       if (i === 0) {
@@ -322,14 +366,20 @@ function tick() {
         if (c && c.confidence > bestConf) { best = c; bestConf = c.confidence; }
       }
     });
-    if (best && bestConf >= 70) {
+    if (best && bestConf >= 60) {
       highlight(best.id, bestConf);
       pushHistory(best.id);
     } else {
       highlight(null);
+      // hand visible but no clear gesture — tell the user
+      currentEl.innerHTML = '<span class="none">✋ hand seen — hold a clear gesture steady</span>';
     }
-  } else if (!hands.length) {
+  } else {
+    updateHandDiag(false);
     highlight(null);
+    if (!hands.length) {
+      currentEl.innerHTML = '<span class="none">No hand detected — check 💡📏 above, face palm to camera</span>';
+    }
   }
 }
 
