@@ -201,18 +201,18 @@ function renderHistory() {
 }
 
 /* ---------- MediaPipe ---------- */
-function loadScript(src) {
-  return new Promise(function (res, rej) {
-    var s = document.createElement("script");
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
+function loadVision() {
+  // vision_bundle is an ES module (.mjs) — load via dynamic import
+  return import(MP_URL + "/vision_bundle.mjs").then(function (mod) {
+    window.vision = mod;
+    return mod;
   });
 }
 
 async function ensureLandmarker() {
   if (S.landmarker) return S.landmarker;
   setStatus("Loading MediaPipe Hands AI model… (once, then cached)");
-  if (!window.vision) await loadScript(MP_URL + "/vision_bundle.js");
+  if (!window.vision) await loadVision();
   var resolver = await window.vision.FilesetResolver.forVisionTasks(MP_URL + "/wasm");
   S.landmarker = await window.vision.HandLandmarker.createFromOptions(resolver, {
     baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
