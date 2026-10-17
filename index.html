@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hand Gesture Recognition — Free Online AI Tool | FAKLABS</title>
+<meta name="description" content="Detect 12 hand gestures in real time with AI in your browser. Free, no signup, runs locally. Powered by MediaPipe Hands. By FAKLABS.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✋</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">⚡ FAKLABS</div>
+  <div class="tagline">Hand Gesture Recognition</div>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Hand Gesture Recognition</h1>
+    <p class="sub">Real-time AI detection of <strong>12 gestures</strong> — right in your browser. Free, no signup, your camera never leaves your device.</p>
+    <div class="controls">
+      <button id="btn-start" class="btn primary">📷 Start Camera</button>
+      <button id="btn-stop" class="btn" disabled>⏹ Stop</button>
+      <button id="btn-mirror" class="btn toggle on">🪞 Mirror: On</button>
+      <button id="btn-shot" class="btn" disabled>📸 Screenshot</button>
+    </div>
+    <div id="status" class="status">Click <b>Start Camera</b> and allow webcam access.</div>
+  </section>
+
+  <section class="stage-wrap">
+    <div class="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div id="fps" class="fps"></div>
+      <div id="gesture-badge" class="gesture-badge hidden">
+        <div id="badge-emoji" class="badge-emoji">✋</div>
+        <div id="badge-name" class="badge-name">Open Hand</div>
+        <div id="badge-conf" class="badge-conf">98%</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Detected Gesture</h2>
+    <div id="current" class="current">
+      <span class="none">— waiting for camera —</span>
+    </div>
+    <h2>Gesture History</h2>
+    <div id="history" class="history"><span class="none">No gestures yet. Show your hand!</span></div>
+  </section>
+
+  <section class="grid-section">
+    <h2>12 Supported Gestures</h2>
+    <div id="gesture-grid" class="gesture-grid"></div>
+  </section>
+
+  <section class="how">
+    <h2>How to use</h2>
+    <ol>
+      <li>Click <b>Start camera</b> and allow webcam access when prompted.</li>
+      <li>Hold your hand clearly in front of the camera with good lighting.</li>
+      <li>Try any gesture below — the matching card lights up in real time with a confidence score.</li>
+    </ol>
+    <h2>Tips for best accuracy</h2>
+    <ul>
+      <li><b>Lighting:</b> bright, even light. Avoid strong backlight.</li>
+      <li><b>Background:</b> a plain background behind your hand helps.</li>
+      <li><b>Distance:</b> keep your hand 30–70 cm from the camera.</li>
+      <li><b>Angle:</b> face your palm toward the camera for best results.</li>
+    </ul>
+    <h2>Privacy</h2>
+    <p>All processing happens locally in your browser using MediaPipe Hands (WebAssembly + WebGL). Your video is never uploaded anywhere. The tool works offline after the model downloads once.</p>
+  </section>
+</main>
+
+<footer>
+  <div>Built with ⚡ by <b>FAKLABS</b> — Faizan Ahmad Khichi</div>
+  <div class="foot-links">
+    <a href="https://faizankhichi.me" target="_blank" rel="noopener">faizankhichi.me</a>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
