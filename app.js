@@ -205,6 +205,14 @@ function loadVision() {
   // vision_bundle is an ES module (.mjs) — load via dynamic import
   return import(MP_URL + "/vision_bundle.mjs").then(function (mod) {
     window.vision = mod;
+    // debug: verify HandLandmarker is real
+    window.__visionDbg = {
+      hasHL: typeof mod.HandLandmarker,
+      hasFR: typeof mod.FilesetResolver,
+      hlKeys: mod.HandLandmarker ? Object.getOwnPropertyNames(mod.HandLandmarker) : [],
+      protoKeys: mod.HandLandmarker && mod.HandLandmarker.prototype ?
+        Object.getOwnPropertyNames(mod.HandLandmarker.prototype).slice(0, 20) : [],
+    };
     return mod;
   });
 }
@@ -214,16 +222,24 @@ async function ensureLandmarker() {
   setStatus("Loading MediaPipe Hands AI model… (once, then cached)");
   if (!window.vision) await loadVision();
   var resolver = await window.vision.FilesetResolver.forVisionTasks(MP_URL + "/wasm");
-  S.landmarker = await window.vision.HandLandmarker.createFromOptions(resolver, {
-    baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
-    runningMode: "LIVE_STREAM",
-    numHands: 2,
-    minHandDetectionConfidence: 0.3,
-    minHandPresenceConfidence: 0.3,
-    minTrackingConfidence: 0.3,
-    resultCallback: function (r) { S.latest = r; S.latestT = performance.now(); },
-  });
-  return S.landmarker;
+  // Try GPU, fall back to CPU (GPU delegate fails silently on some devices)
+  var delegates = ["GPU", "CPU"];
+  var lastErr = null;
+  for (var di = 0; di < delegates.length; di++) {
+    try {
+      S.landmarker = await window.vision.HandLandmarker.createFromOptions(resolver, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate: delegates[di] },
+        runningMode: "VIDEO",
+        numHands: 2,
+        minHandDetectionConfidence: 0.3,
+        minHandPresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3,
+      });
+      if (di > 0) setStatus("⚠️ GPU failed, using CPU mode (slower but works)");
+      return S.landmarker;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("both delegates failed");
 }
 
 /* ---------- camera ---------- */
@@ -298,7 +314,7 @@ function ensureDiag() {
   if (diagEl) return;
   diagEl = document.createElement("div");
   diagEl.className = "diag";
-  diagEl.innerHTML = '<span id="diag-light">💡 —</span> <span id="diag-hand">✋ —</span> <span id="diag-dist">📏 —</span>';
+  diagEl.innerHTML = '<span id="diag-light">💡 —</span> <span id="diag-hand">✋ —</span> <span id="diag-dist">📏 —</span><br><span id="diag-dbg" style="font-size:11px;color:#666;"></span>';
   document.querySelector(".stage").appendChild(diagEl);
 }
 function checkLighting() {
@@ -345,7 +361,32 @@ function tick() {
   }
 
   if (video.readyState >= 2 && S.landmarker) {
-    try { S.landmarker.detectAsync(video, now); } catch (e) {}
+    try {
+      var res = S.landmarker.detectForVideo(video, now);
+      S.detectCalls = (S.detectCalls || 0) + 1;
+      if (res) { S.latest = res; S.latestT = now; S.cbCount = (S.cbCount||0)+1; }
+    } catch (e) {
+      S.detectErr = e.message;
+    }
+  }
+  // debug: show detect stats every 3s
+  if (!S.dbgT || now - S.dbgT > 3000) {
+    S.dbgT = now;
+    var dbg = document.getElementById("diag-dbg");
+    if (dbg) {
+      var vd = window.__visionDbg;
+      var vinfo = vd ? " HL:" + vd.hasHL + " proto:" + (vd.protoKeys||[]).join(",").slice(0,80) : " no-dbg";
+      // also check the instance
+      var inst = "";
+      if (S.landmarker) {
+        inst = " instType:" + typeof S.landmarker.detectAsync;
+        try { inst += " keys:" + Object.getOwnPropertyNames(Object.getPrototypeOf(S.landmarker)).slice(0,10).join(","); } catch(e){}
+      }
+      dbg.textContent = "🔧 calls:" + (S.detectCalls||0) + " callbacks:" + (S.cbCount||0) +
+        " video:" + video.readyState + "x" + video.videoWidth + vinfo + inst +
+        (S.detectErr ? " ERR:" + S.detectErr : "");
+    }
+    S.detectCalls = 0;
   }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
